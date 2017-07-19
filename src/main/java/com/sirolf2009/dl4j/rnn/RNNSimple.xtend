@@ -5,6 +5,8 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.util.List
+import javax.swing.JFrame
+import javax.swing.WindowConstants
 import org.datavec.api.records.reader.impl.csv.CSVSequenceRecordReader
 import org.datavec.api.split.NumberedFileInputSplit
 import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator
@@ -14,28 +16,25 @@ import org.deeplearning4j.nn.conf.NeuralNetConfiguration
 import org.deeplearning4j.nn.conf.Updater
 import org.deeplearning4j.nn.conf.layers.GravesLSTM
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer
+import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
 import org.deeplearning4j.nn.weights.WeightInit
+import org.deeplearning4j.optimize.listeners.ScoreIterationListener
 import org.eclipse.xtend.lib.annotations.Data
+import org.jfree.chart.ChartFactory
+import org.jfree.chart.ChartPanel
+import org.jfree.chart.axis.NumberAxis
+import org.jfree.chart.plot.PlotOrientation
+import org.jfree.data.xy.XYSeries
+import org.jfree.data.xy.XYSeriesCollection
+import org.jfree.ui.RefineryUtilities
 import org.nd4j.linalg.activations.Activation
+import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerMinMaxScaler
+import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.lossfunctions.LossFunctions
 
 import static extension java.nio.file.Files.*
 import static extension org.apache.commons.io.FileUtils.*
-import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
-import org.deeplearning4j.optimize.listeners.ScoreIterationListener
-import org.deeplearning4j.eval.RegressionEvaluation
-import org.nd4j.linalg.factory.Nd4j
-import org.jfree.data.xy.XYSeriesCollection
-import org.nd4j.linalg.api.ndarray.INDArray
-import org.jfree.data.xy.XYSeries
-import org.jfree.chart.plot.PlotOrientation
-import org.jfree.chart.ChartFactory
-import org.jfree.chart.axis.NumberAxis
-import org.jfree.chart.ChartPanel
-import javax.swing.JFrame
-import javax.swing.WindowConstants
-import org.jfree.ui.RefineryUtilities
 
 @Data
 class RNNSimple {
@@ -81,8 +80,8 @@ class RNNSimple {
 			iterations(1)
 			weightInit = WeightInit.XAVIER
 			updater = Updater.NESTEROVS
-			momentum = 0.9
-			learningRate = 0.15
+			momentum = 0.1
+			learningRate = 0.015
 		]
 		val config = builder.list() => [
 			layer(0, new GravesLSTM.Builder().activation(Activation.TANH).nIn(numOfVariables).nOut(10).build())
@@ -95,22 +94,22 @@ class RNNSimple {
 			new ScoreIterationListener(20)
 		]
 
-		val epochs = 1
+		val epochs = 50
 		(0 ..< epochs).forEach [
 			net.fit(trainIter)
 			trainIter.reset()
 
-			println('''Epoch «it» complete. Time series evaluation:''')
-			val evaluation = new RegressionEvaluation(numOfVariables)
-			while(testIter.hasNext()) {
-				val data = testIter.next()
-				val features = data.featureMatrix
-				val labels = data.labels
-				val predicted = net.output(features, true)
-				evaluation.evalTimeSeries(labels, predicted)
-			}
-			println(evaluation.stats())
-			testIter.reset()
+//			println('''Epoch «it» complete. Time series evaluation:''')
+//			val evaluation = new RegressionEvaluation(numOfVariables)
+//			while(testIter.hasNext()) {
+//				val data = testIter.next()
+//				val features = data.featureMatrix
+//				val labels = data.labels
+//				val predicted = net.output(features, true)
+//				evaluation.evalTimeSeries(labels, predicted)
+//			}
+//			println(evaluation.stats())
+//			testIter.reset()
 		]
 
 		// plotting
@@ -170,7 +169,7 @@ class RNNSimple {
 		val series = new XYSeries(name)
 		(0 ..< rows).forEach[
 			if(predicted) {
-				series.add(it+offset, data.slice(0).getDouble(it))
+				series.add(it+offset, data.slice(0).slice(0).getDouble(it))
 			} else {
 				series.add(it+offset, data.slice(0).getDouble(it))
 			}
@@ -191,7 +190,7 @@ class RNNSimple {
 	}
 
 	def static Pair<List<String>, Integer> prepareTrainAndTest(int trainSize, int testSize, int numberOfTimesteps) {
-		val path = new File("src/main/resources/incrementing_numbers.csv").toPath()
+		val path = new File("src/main/resources/orderbook2.csv").toPath()
 		val rawStrings = path.readAllLines
 		val numOfVariables = rawStrings.numOfVariables
 
