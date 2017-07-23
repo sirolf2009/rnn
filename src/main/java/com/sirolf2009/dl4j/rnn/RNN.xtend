@@ -29,6 +29,9 @@ import static com.sirolf2009.dl4j.rnn.Data.*
 import static extension com.sirolf2009.dl4j.rnn.ChartUtil.*
 import static extension java.nio.file.Files.*
 import static extension org.apache.commons.io.FileUtils.*
+import org.deeplearning4j.ui.api.UIServer
+import org.deeplearning4j.ui.storage.InMemoryStatsStorage
+import org.deeplearning4j.ui.stats.StatsListener
 
 @org.eclipse.xtend.lib.annotations.Data class RNN {
 
@@ -43,7 +46,7 @@ import static extension org.apache.commons.io.FileUtils.*
 	val int miniBatchSize
 	val int epochs
 
-	def init() {
+	def train() {
 		extension val dataformat = prepareTrainAndTest(numberOfTimesteps, miniBatchSize)
 
 		val trainFeatures = new CSVSequenceRecordReader()
@@ -71,7 +74,7 @@ import static extension org.apache.commons.io.FileUtils.*
 			weightInit = WeightInit.XAVIER
 			updater = Updater.NESTEROVS
 			momentum = 0.5
-			learningRate = 0.01
+			learningRate = 0.1
 		]
 		val config = builder.list() => [
 			layer(0, new GravesLSTM.Builder().activation(Activation.TANH).nIn(numOfVariables).nOut(10).build())
@@ -84,6 +87,12 @@ import static extension org.apache.commons.io.FileUtils.*
 		collection.createSeries(trainingArray, 0, "Train data")
 		collection.createSeries(testingArray, trainSize - 1, "Actual test data")
 		collection.plotDataset("Training", rawDataFile)
+		
+		UIServer.instance => [
+			val storage = new InMemoryStatsStorage()
+			attach(storage)
+			net.listeners = new StatsListener(storage)
+		]
 
 		val start = System.currentTimeMillis()
 		(0 ..< epochs).forEach [
@@ -142,9 +151,10 @@ import static extension org.apache.commons.io.FileUtils.*
 	def static void main(String[] args) {
 		val forward = 30
 		val batch = 10
-		val epochs = 10
+		val epochs = 50
 		new RNN(forward, batch, epochs) => [
-			init()
+			new Database("http://198.211.120.29:8086").saveLatestDate(1)
+			train()
 		]
 	}
 

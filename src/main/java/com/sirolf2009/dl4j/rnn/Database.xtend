@@ -61,11 +61,15 @@ class Database {
 	def QueryResult query(Object... query) {
 		influxDB.query(new Query(query.join(" "), tradesDB))
 	}
+	
+	def saveLatestDate(int minutes) {
+		val csv = yearOHLC(minutes).asDataset().asCSV()
+		Files.write(new File("src/main/resources/ohlc-2017.csv").toPath, csv.split("\n"))
+	}
 
 	def static void main(String[] args) {
 		extension val it = new Database(args.get(0))
-		val csv = yearOHLC(1).asDataset().asCSV()
-		Files.write(new File("src/main/resources/ohlc-2017.csv").toPath, csv.split("\n"))
+		saveLatestDate(1)
 	}
 
 }
