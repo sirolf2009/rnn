@@ -11,9 +11,10 @@ import java.util.stream.Collectors
 class DbDump {
 
 	def static getOrders() {
-		val file = new File("C:\\Users\\Floris\\Downloads\\db.json")
+//		val file = new File("C:\\Users\\Floris\\Downloads\\db.json")
+		val file = new File("/home/sirolf2009/Downloads/db.json")
 		val gson = new GsonBuilder().create()
-		return Files.lines(file.toPath).filter[startsWith("{\"id\":\"")].map [
+		return Files.lines(file.toPath).parallel().filter[startsWith("{\"id\":\"")].map [
 			try {
 				val document = gson.fromJson(substring(0, length - 1), JsonObject).getAsJsonObject("doc")
 				val order = new LimitOrder() => [

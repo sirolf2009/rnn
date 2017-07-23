@@ -9,12 +9,10 @@ class TestOrderbookDataset {
 		println("Loading db orders")
 		val orders = DbDump.orders
 		println('''Loaded «orders.size» orders''')
-		val slices = OrderbookDataset.fromOrders(orders, 50, 10).toList
+		val slices = OrderbookDataset.fromOrders(orders, 15).toList
 		println('''Loaded «slices.size» slices''')
 		slices.forEach [
-			entrySet.forEach [
-				println('''«key»: price=«value.key» volume=«value.value»''')
-			]
+			println(it.map[price+":"+amount].reduce[a,b|a+", "+b])
 		]
 	}
 

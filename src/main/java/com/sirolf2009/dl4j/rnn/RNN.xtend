@@ -4,11 +4,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
-import java.time.Duration
-import java.util.Date
 import java.util.List
-import javax.swing.JFrame
-import javax.swing.WindowConstants
 import org.datavec.api.records.reader.impl.csv.CSVSequenceRecordReader
 import org.datavec.api.split.NumberedFileInputSplit
 import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator
@@ -21,25 +17,20 @@ import org.deeplearning4j.nn.conf.layers.RnnOutputLayer
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
 import org.deeplearning4j.nn.weights.WeightInit
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener
-import org.jfree.chart.ChartFactory
-import org.jfree.chart.ChartPanel
-import org.jfree.chart.axis.NumberAxis
-import org.jfree.chart.plot.PlotOrientation
-import org.jfree.data.xy.XYSeries
 import org.jfree.data.xy.XYSeriesCollection
-import org.jfree.ui.RefineryUtilities
 import org.nd4j.linalg.activations.Activation
-import org.nd4j.linalg.api.ndarray.INDArray
+import org.nd4j.linalg.dataset.DataSet
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerMinMaxScaler
-import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.lossfunctions.LossFunctions
 
+import static com.sirolf2009.dl4j.rnn.Data.*
+
+import static extension com.sirolf2009.dl4j.rnn.ChartUtil.*
 import static extension java.nio.file.Files.*
 import static extension org.apache.commons.io.FileUtils.*
 
-@org.eclipse.xtend.lib.annotations.Data
-class RNNSimple {
-
+@org.eclipse.xtend.lib.annotations.Data class RNN {
+	
 	static val baseDir = new File("src/main/resources")
 	static val featuresDirTrain = new File(baseDir, "features_train")
 	static val labelsDirTrain = new File(baseDir, "labels_train")
@@ -78,7 +69,6 @@ class RNNSimple {
 		testIter.preProcessor = normalizer
 
 		val builder = new NeuralNetConfiguration.Builder() => [
-//			seed = 140
 			optimizationAlgo = OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT
 			iterations(1)
 			weightInit = WeightInit.XAVIER
@@ -102,7 +92,7 @@ class RNNSimple {
 		val testArray = createIndArrayFromStringList(rawStrings, numOfVariables, trainSize, testSize)
 		collection.createSeries(trainArray, 0, "Train data")
 		collection.createSeries(testArray, trainSize - 1, "Actual test data")
-		collection.plotDataset("Training")
+		collection.plotDataset("Training", rawDataFile)
 
 		(0 ..< epochs).forEach [
 			net.fit(trainIter)
@@ -132,20 +122,13 @@ class RNNSimple {
 	def predict(MultiLayerNetwork net) {
 		val db = new Database("http://198.211.120.29:8086")
 		val dataset = db.asDataset(db.getOHLC(trainSize, 1))
-		val file = new File("src/main/resources/temp_0.csv")
-		Files.write(file.toPath, db.asCSV(dataset).split("\n"))
-		val predictFeatures = new CSVSequenceRecordReader()
-		predictFeatures.initialize(new NumberedFileInputSplit("src/main/resources/temp_%d.csv", 0, 0))
-		val predictLabels = new CSVSequenceRecordReader()
-		predictLabels.initialize(new NumberedFileInputSplit("src/main/resources/temp_%d.csv", 0, 0))
-		val predictIter = new SequenceRecordReaderDataSetIterator(predictFeatures, predictLabels, miniBatchSize, -1, true)
 
+		val predictData = Data.createIndArrayFromDataset(dataset, numberOfTimesteps)
 		val normalizerP = new NormalizerMinMaxScaler(0, 1)
 		normalizerP.fitLabel(true)
-		normalizerP.fit(predictIter)
-		predictIter.preProcessor = normalizerP
+		normalizerP.fit(new DataSet(predictData, predictData))
 
-		val predictData = predictIter.next.featureMatrix
+		normalizerP.transform(predictData)
 		val predicted = net.rnnTimeStep(predictData)
 		val rows = predicted.shape.get(2)
 		(0 ..< rows).forEach [ it, index |
@@ -153,17 +136,6 @@ class RNNSimple {
 		]
 		normalizerP.revertLabels(predicted)
 
-		dataset.get(0).forEach [
-			println(time + " Close Actual   : " + value)
-		]
-		(0 ..< rows).forEach [ it, index |
-			println(new Date(dataset.get(0).last.time.time + Duration.ofMinutes(index).toMillis) + " Close Predicted: " + predicted.slice(0).slice(0).getDouble(it))
-		]
-		(0 ..< Math.min(50, rows)).forEach [ it, index |
-			val time = dataset.get(0).last.time.time + Duration.ofMinutes(index).toMillis
-			val price = predicted.slice(0).slice(0).getDouble(it)
-			println('''plotshape(time == «time» ? «price» : na, style=shape.circle, location=location.absolute, color=aqua, offset=«Duration.ofHours(2).toMinutes()»)''')
-		]
 		val collection = new XYSeriesCollection()
 		val RecentArray = createIndArrayFromStringList(db.asCSV(dataset).split("\n"), 5, 0, dataset.get(0).size())
 		collection.createSeries(RecentArray, 0, "Recent data")
@@ -171,80 +143,21 @@ class RNNSimple {
 		collection.createSeries(predicted, RecentArray.shape.get(2) - 1, 1, "Predicted data High")
 		collection.createSeries(predicted, RecentArray.shape.get(2) - 1, 2, "Predicted data Low")
 		collection.createSeries(predicted, RecentArray.shape.get(2) - 1, 3, "Predicted data Open")
-		collection.plotDataset("Prediction")
+		collection.plotDataset("Prediction", rawDataFile)
 	}
 
 	def static void main(String[] args) {
 //		val train = 4000
 //		val test = 50
 //		val forward = 50
-		val train = 1000
+		val train = 1050
 		val test = 30
 		val forward = test
 		val batch = 10
-		val epochs = 50
+		val epochs = 5
 		new RNNSimple(train, test, forward, batch, epochs) => [
 			init()
 		]
-	}
-
-	def static plotDataset(XYSeriesCollection collection, String titleChart) {
-		val title = rawDataFile
-		val xAxisLabel = "Timestep"
-		val yAxisLabel = "Close in $"
-		val orientation = PlotOrientation.VERTICAL
-		val legend = true
-		val tooltips = false
-		val urls = false
-		val chart = ChartFactory.createXYLineChart(title, xAxisLabel, yAxisLabel, collection, orientation, legend, tooltips, urls);
-		val plot = chart.XYPlot
-		val rangeAxis = plot.getRangeAxis() as NumberAxis
-		rangeAxis.autoRange = true
-		rangeAxis.autoRangeIncludesZero = false
-		val panel = new ChartPanel(chart)
-		val frame = new JFrame()
-		frame.add(panel)
-		frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
-		frame.pack()
-		frame.title = titleChart
-		RefineryUtilities.centerFrameOnScreen(frame)
-		frame.visible = true
-		frame.setExtendedState(frame.getExtendedState().bitwiseOr(JFrame.MAXIMIZED_BOTH))
-	}
-
-	def static createSeries(XYSeriesCollection collection, INDArray data, int offset, String name) {
-		val rows = data.shape.get(2)
-		val predicted = name.startsWith("Epoch")
-		val series = new XYSeries(name)
-		(0 ..< rows).forEach [
-			if(predicted) {
-				series.add(it + offset, data.slice(0).slice(0).getDouble(it))
-			} else {
-				series.add(it + offset, data.slice(0).getDouble(it))
-			}
-		]
-		collection.addSeries(series)
-	}
-
-	def static createSeries(XYSeriesCollection collection, INDArray data, int offset, int index, String name) {
-		val rows = data.shape.get(2)
-		val series = new XYSeries(name)
-		(0 ..< rows).forEach [
-			series.add(it + offset, data.slice(0).slice(index).getDouble(it))
-		]
-		collection.addSeries(series)
-	}
-
-	def static createIndArrayFromStringList(List<String> rawString, int numOfVariables, int start, int length) {
-		val stringList = rawString.subList(start, start + length)
-		val double[][] primitives = Matrix.new2DDoubleArrayOfSize(numOfVariables, stringList.size())
-		stringList.forEach [ it, i |
-			val vals = split(",")
-			vals.forEach [ it, j |
-				primitives.get(j).set(i, Double.valueOf(vals.get(j)))
-			]
-		]
-		return Nd4j.create(#[1, length], primitives)
 	}
 
 	def static Pair<List<String>, Integer> prepareTrainAndTest(int trainSize, int testSize, int numberOfTimesteps) {
@@ -286,5 +199,5 @@ class RNNSimple {
 	def static getNumOfVariables(List<String> rawStrings) {
 		return rawStrings.get(0).split(",").length
 	}
-
+	
 }
