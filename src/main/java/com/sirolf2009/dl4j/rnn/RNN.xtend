@@ -16,7 +16,6 @@ import org.deeplearning4j.nn.conf.layers.GravesLSTM
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
 import org.deeplearning4j.nn.weights.WeightInit
-import org.deeplearning4j.optimize.listeners.ScoreIterationListener
 import org.jfree.data.xy.XYSeriesCollection
 import org.nd4j.linalg.activations.Activation
 import org.nd4j.linalg.dataset.DataSet
@@ -83,10 +82,6 @@ import static extension org.apache.commons.io.FileUtils.*
 		val net = new MultiLayerNetwork(config.build())
 		net.init()
 
-		net.listeners += #[
-			new ScoreIterationListener(20)
-		]
-
 		val collection = new XYSeriesCollection()
 		val trainArray = createIndArrayFromStringList(rawStrings, numOfVariables, 0, trainSize)
 		val testArray = createIndArrayFromStringList(rawStrings, numOfVariables, trainSize, testSize)
@@ -130,11 +125,11 @@ import static extension org.apache.commons.io.FileUtils.*
 
 		normalizerP.transform(predictData)
 		val predicted = net.rnnTimeStep(predictData)
+		normalizerP.revertLabels(predicted)
 		val rows = predicted.shape.get(2)
 		(0 ..< rows).forEach [ it, index |
 			println("Close Predicted: " + predicted.slice(0).slice(0).getDouble(it))
 		]
-		normalizerP.revertLabels(predicted)
 
 		val collection = new XYSeriesCollection()
 		val RecentArray = createIndArrayFromStringList(db.asCSV(dataset).split("\n"), 5, 0, dataset.get(0).size())
@@ -154,8 +149,8 @@ import static extension org.apache.commons.io.FileUtils.*
 		val test = 30
 		val forward = test
 		val batch = 10
-		val epochs = 5
-		new RNNSimple(train, test, forward, batch, epochs) => [
+		val epochs = 10
+		new RNN(train, test, forward, batch, epochs) => [
 			init()
 		]
 	}

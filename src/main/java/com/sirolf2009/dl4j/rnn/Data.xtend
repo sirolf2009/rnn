@@ -20,11 +20,11 @@ class Data {
 	}
 	
 	def static createIndArrayFromDataset(Dataset dataset, int forward) {
-		val initializationInput = Nd4j.zeros(1, forward, dataset.size())
+		val initializationInput = Nd4j.zeros(1, dataset.size(), forward)
 		val matrix = dataset.asMatrix(forward)
 		matrix.forEach[array,i|
 			array.forEach[value, j|
-				initializationInput.putScalar(#[0, i, j], value)
+				initializationInput.putScalar(#[0, j, i], value)
 			]
 		]
 		return initializationInput

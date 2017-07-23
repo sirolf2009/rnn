@@ -41,7 +41,7 @@ class TestData {
 		val dataset = new Dataset()
 		dataset += #[series1, series2]
 		
-		Data.createIndArrayFromDataset(dataset, 3)
+		println(Data.createIndArrayFromDataset(dataset, 3))
 	}
 
 }
