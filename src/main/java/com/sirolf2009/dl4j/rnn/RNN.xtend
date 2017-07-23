@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
+import java.time.Duration
 import java.util.List
 import org.datavec.api.records.reader.impl.csv.CSVSequenceRecordReader
 import org.datavec.api.split.NumberedFileInputSplit
@@ -18,6 +19,7 @@ import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
 import org.deeplearning4j.nn.weights.WeightInit
 import org.jfree.data.xy.XYSeriesCollection
 import org.nd4j.linalg.activations.Activation
+import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.dataset.DataSet
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerMinMaxScaler
 import org.nd4j.linalg.lossfunctions.LossFunctions
@@ -29,7 +31,7 @@ import static extension java.nio.file.Files.*
 import static extension org.apache.commons.io.FileUtils.*
 
 @org.eclipse.xtend.lib.annotations.Data class RNN {
-	
+
 	static val baseDir = new File("src/main/resources")
 	static val featuresDirTrain = new File(baseDir, "features_train")
 	static val labelsDirTrain = new File(baseDir, "labels_train")
@@ -37,16 +39,12 @@ import static extension org.apache.commons.io.FileUtils.*
 	static val labelsDirTest = new File(baseDir, "labels_test")
 	static val rawDataFile = "ohlc-2017.csv"
 
-	val int trainSize
-	val int testSize
 	val int numberOfTimesteps
 	val int miniBatchSize
 	val int epochs
 
 	def init() {
-		val trainingAndTestingSet = prepareTrainAndTest(trainSize, testSize, numberOfTimesteps)
-		val rawStrings = trainingAndTestingSet.key
-		val numOfVariables = trainingAndTestingSet.value
+		extension val dataformat = prepareTrainAndTest(numberOfTimesteps, miniBatchSize)
 
 		val trainFeatures = new CSVSequenceRecordReader()
 		trainFeatures.initialize(new NumberedFileInputSplit('''«featuresDirTrain.absolutePath»/train_%d.csv''', 0, trainSize - 1))
@@ -60,7 +58,7 @@ import static extension org.apache.commons.io.FileUtils.*
 		testLabels.initialize(new NumberedFileInputSplit('''«labelsDirTest.absolutePath»/test_%d.csv''', trainSize, trainSize + testSize))
 		val testIter = new SequenceRecordReaderDataSetIterator(testFeatures, testLabels, miniBatchSize, -1, true, AlignmentMode.ALIGN_END)
 
-		val normalizer = new NormalizerMinMaxScaler(0, 1)
+		val normalizer = new NormalizerMinMaxScaler(-1, 1)
 		normalizer.fitLabel(true)
 		normalizer.fit(trainIter)
 		trainIter.reset()
@@ -83,12 +81,11 @@ import static extension org.apache.commons.io.FileUtils.*
 		net.init()
 
 		val collection = new XYSeriesCollection()
-		val trainArray = createIndArrayFromStringList(rawStrings, numOfVariables, 0, trainSize)
-		val testArray = createIndArrayFromStringList(rawStrings, numOfVariables, trainSize, testSize)
-		collection.createSeries(trainArray, 0, "Train data")
-		collection.createSeries(testArray, trainSize - 1, "Actual test data")
+		collection.createSeries(trainingArray, 0, "Train data")
+		collection.createSeries(testingArray, trainSize - 1, "Actual test data")
 		collection.plotDataset("Training", rawDataFile)
 
+		val start = System.currentTimeMillis()
 		(0 ..< epochs).forEach [
 			net.fit(trainIter)
 			trainIter.reset()
@@ -108,18 +105,19 @@ import static extension org.apache.commons.io.FileUtils.*
 			collection.createSeries(predicted, trainSize - 1, "Epoch: " + it)
 			net.rnnClearPreviousState()
 		]
+		println("Training completed in " + Duration.ofMillis(System.currentTimeMillis() - start))
 
-		net.predict()
+		net.predict(trainSize)
 
 		return net
 	}
 
-	def predict(MultiLayerNetwork net) {
+	def predict(MultiLayerNetwork net, int trainSize) {
 		val db = new Database("http://198.211.120.29:8086")
 		val dataset = db.asDataset(db.getOHLC(trainSize, 1))
 
 		val predictData = Data.createIndArrayFromDataset(dataset, numberOfTimesteps)
-		val normalizerP = new NormalizerMinMaxScaler(0, 1)
+		val normalizerP = new NormalizerMinMaxScaler(-1, 1)
 		normalizerP.fitLabel(true)
 		normalizerP.fit(new DataSet(predictData, predictData))
 
@@ -142,20 +140,15 @@ import static extension org.apache.commons.io.FileUtils.*
 	}
 
 	def static void main(String[] args) {
-//		val train = 4000
-//		val test = 50
-//		val forward = 50
-		val train = 1050
-		val test = 30
-		val forward = test
+		val forward = 30
 		val batch = 10
 		val epochs = 10
-		new RNN(train, test, forward, batch, epochs) => [
+		new RNN(forward, batch, epochs) => [
 			init()
 		]
 	}
 
-	def static Pair<List<String>, Integer> prepareTrainAndTest(int trainSize, int testSize, int numberOfTimesteps) {
+	def static DataFormat prepareTrainAndTest(int numberOfTimesteps, int miniBatchSize) {
 		val path = new File("src/main/resources/" + rawDataFile).toPath()
 		val rawStrings = path.readAllLines
 		val numOfVariables = rawStrings.numOfVariables
@@ -164,6 +157,14 @@ import static extension org.apache.commons.io.FileUtils.*
 		labelsDirTrain.clean()
 		featuresDirTest.clean()
 		labelsDirTest.clean()
+		
+		val trainingLines = rawStrings.size() - numberOfTimesteps - numberOfTimesteps - numberOfTimesteps
+		val trainSize = trainingLines - (trainingLines % miniBatchSize)
+
+		println("Total          : " + rawStrings.size())
+		println("step           : " + numberOfTimesteps)
+		println("trainSize      : " + trainSize)
+		println("trainingLines  : " + trainingLines)
 
 		(0 .. trainSize).forEach [
 			val featuresPath = Paths.get('''«featuresDirTrain.absolutePath»/train_«it».csv''')
@@ -174,7 +175,7 @@ import static extension org.apache.commons.io.FileUtils.*
 			Files.write(labelsPath, rawStrings.get(it + numberOfTimesteps).concat("\n").bytes, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
 		]
 
-		(trainSize .. (testSize + trainSize)).forEach [
+		(trainSize .. (numberOfTimesteps + trainSize)).forEach [
 			val featuresPath = Paths.get('''«featuresDirTest.absolutePath»/test_«it».csv''')
 			val labelsPath = Paths.get('''«labelsDirTest.absolutePath»/test_«it».csv''')
 			(0 .. numberOfTimesteps).forEach [ step |
@@ -182,8 +183,22 @@ import static extension org.apache.commons.io.FileUtils.*
 			]
 			Files.write(labelsPath, rawStrings.get(it + numberOfTimesteps).concat("\n").bytes, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
 		]
+		
+		val trainingArray = createIndArrayFromStringList(rawStrings, numOfVariables, 0, trainSize)
+		val testingArray = createIndArrayFromStringList(rawStrings, numOfVariables, trainSize, numberOfTimesteps)
 
-		rawStrings -> numOfVariables
+		return new DataFormat(trainSize, numberOfTimesteps, numberOfTimesteps, numOfVariables, trainingArray, testingArray)
+	}
+	
+	@org.eclipse.xtend.lib.annotations.Data static class DataFormat {
+		
+		val int trainSize
+		val int testSize
+		val int numberOfTimesteps
+		val int numOfVariables
+		val INDArray trainingArray
+		val INDArray testingArray
+		
 	}
 
 	def static clean(File folder) {
@@ -194,5 +209,5 @@ import static extension org.apache.commons.io.FileUtils.*
 	def static getNumOfVariables(List<String> rawStrings) {
 		return rawStrings.get(0).split(",").length
 	}
-	
+
 }
