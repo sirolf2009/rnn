@@ -55,7 +55,7 @@ class RnnCloseIndicator extends CachedIndicator<Decimal> {
 			high += new Point(tick.maxPrice.toDouble, time)
 			low += new Point(tick.minPrice.toDouble, time)
 			close += new Point(tick.closePrice.toDouble, time)
-			vol += new Point(tick.amount.toDouble, time)
+			vol += new Point(tick.volume.toDouble, time)
 		]
 		val dataset = new Dataset()
 		dataset += new TimeSeries("Open", open)

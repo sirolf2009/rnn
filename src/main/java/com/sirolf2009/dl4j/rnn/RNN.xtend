@@ -1,16 +1,13 @@
 package com.sirolf2009.dl4j.rnn
 
 import com.sirolf2009.dl4j.rnn.indicator.RnnCloseIndicator
-import eu.verdelhan.ta4j.Strategy
 import eu.verdelhan.ta4j.analysis.criteria.TotalProfitCriterion
-import eu.verdelhan.ta4j.indicators.simple.ClosePriceIndicator
-import eu.verdelhan.ta4j.trading.rules.OverIndicatorRule
-import eu.verdelhan.ta4j.trading.rules.UnderIndicatorRule
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.text.SimpleDateFormat
+import java.time.Duration
 import java.util.Date
 import java.util.List
 import org.datavec.api.records.reader.impl.csv.CSVSequenceRecordReader
@@ -19,6 +16,7 @@ import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator
 import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator.AlignmentMode
 import org.deeplearning4j.earlystopping.EarlyStoppingConfiguration
 import org.deeplearning4j.earlystopping.saver.LocalFileModelSaver
+import org.deeplearning4j.earlystopping.termination.MaxEpochsTerminationCondition
 import org.deeplearning4j.earlystopping.trainer.EarlyStoppingTrainer
 import org.deeplearning4j.nn.api.OptimizationAlgorithm
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration
@@ -40,10 +38,9 @@ import static com.sirolf2009.dl4j.rnn.Data.*
 import static extension com.sirolf2009.dl4j.rnn.ChartUtil.*
 import static extension java.nio.file.Files.*
 import static extension org.apache.commons.io.FileUtils.*
-import org.deeplearning4j.earlystopping.termination.MaxEpochsTerminationCondition
-import java.time.Duration
 
-@org.eclipse.xtend.lib.annotations.Data class RNN {
+@org.eclipse.xtend.lib.annotations.Data
+class RNN {
 
 	static val baseDir = new File("data")
 	static val featuresDirTrain = new File(baseDir, "features_train")
@@ -98,18 +95,18 @@ import java.time.Duration
 		val net = new MultiLayerNetwork(config.build())
 		net.init()
 
-		val networkFolder = new File("networks", "early-stopping-"+new SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss").format(new Date()))
+		val networkFolder = new File("networks", "early-stopping-" + new SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss").format(new Date()))
 		networkFolder.mkdirs()
 		val earlyStopping = new EarlyStoppingConfiguration.Builder().epochTerminationConditions(new MaxEpochsTerminationCondition(50)).scoreCalculator(new ScoreCalculatorBitstamp(numberOfTimesteps)).modelSaver(new LocalFileModelSaver(networkFolder.absolutePath)).build()
 		val earlyStoppingTrainer = new EarlyStoppingTrainer(earlyStopping, net, trainIter)
 		val result = earlyStoppingTrainer.fit()
-	
+
 		println('''Termination Reason : «result.terminationReason»''')
 		println('''Termination Details: «result.terminationDetails»''')
 		println('''Epochs          : «result.totalEpochs»''')
 		println('''Best Epoch      : «result.bestModelEpoch»''')
 		println('''Best Epoch Score: «result.bestModelScore»''')
-		
+
 		return result.bestModel
 //		val collection = new XYSeriesCollection()
 //		collection.createSeries(trainingArray, 0, "Train data")
@@ -194,18 +191,18 @@ import java.time.Duration
 //			new Database("http://198.211.120.29:8086").saveLatestDate(1)
 //			val net = train()
 			val net = "networks/early-stopping-2017-07-26T14-32-26/bestModel.bin".load()
-			val series = CsvTradesLoader.loadBitstampSeries(Duration.ofMinutes(15))
+			val series = DataLoader.loadOHLCV2017
 			val indicator = new RnnCloseIndicator(series, net, forward)
-			val closePrice = new ClosePriceIndicator(series)
-			val entryRule = new UnderIndicatorRule(closePrice, indicator)
-			val exitRule = new OverIndicatorRule(closePrice, indicator)
-			val strategy = new Strategy(entryRule, exitRule)
-			val record = series.run(strategy)
-			val criterion = new TotalProfitCriterion()
-			record.forEach [ it, index |
-				println((if(entry.buy) "buy" else "sell") + " at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + criterion.calculate(series, it))
+			val backTestLong = ScoreCalculatorBitstamp.backtestLong(net, indicator, forward)
+			val backTestShort = ScoreCalculatorBitstamp.backtestShort(net, indicator, forward)
+			backTestLong.forEach [ it, index |
+				println((if(entry.buy) "buy" else "sell") + " at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + (exit.price.toDouble-entry.price.toDouble))
 			]
-			println("Profit: " + new TotalProfitCriterion().calculate(series, record))
+			backTestShort.forEach [ it, index |
+				println((if(entry.buy) "buy" else "sell") + " at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + (entry.price.toDouble-exit.price.toDouble))
+			]
+			println("Profit Long : " + new TotalProfitCriterion().calculate(series, backTestLong))
+			println("Profit Short: " + new TotalProfitCriterion().calculate(series, backTestShort))
 			ChartUtil.plotDataset(ChartUtil.createOHLCSeries(series, "Bitstamp"), ChartUtil.createSeries(indicator, "rnn"), "rnn", "rnn")
 		]
 	}
@@ -214,7 +211,7 @@ import java.time.Duration
 		val start = System.currentTimeMillis()
 		val path = new File("data/" + rawDataFile).toPath()
 		val rawStrings = path.readAllLines
-		println(Duration.ofMillis(System.currentTimeMillis-start)+" read raw data")
+		println(Duration.ofMillis(System.currentTimeMillis - start) + " read raw data")
 		val numOfVariables = rawStrings.numOfVariables
 
 		featuresDirTrain.clean()
@@ -233,7 +230,7 @@ import java.time.Duration
 			]
 			Files.write(labelsPath, rawStrings.get(it + numberOfTimesteps).concat("\n").bytes, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
 		]
-		println(Duration.ofMillis(System.currentTimeMillis-start)+" created training data")
+		println(Duration.ofMillis(System.currentTimeMillis - start) + " created training data")
 
 		(trainSize .. (numberOfTimesteps + trainSize)).forEach [
 			val featuresPath = Paths.get('''«featuresDirTest.absolutePath»/test_«it».csv''')
@@ -243,17 +240,18 @@ import java.time.Duration
 			]
 			Files.write(labelsPath, rawStrings.get(it + numberOfTimesteps).concat("\n").bytes, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
 		]
-		println(Duration.ofMillis(System.currentTimeMillis-start)+" created testing data")
+		println(Duration.ofMillis(System.currentTimeMillis - start) + " created testing data")
 
 		val trainingArray = createIndArrayFromStringList(rawStrings, numOfVariables, 0, trainSize)
-		println(Duration.ofMillis(System.currentTimeMillis-start)+" created training array")
+		println(Duration.ofMillis(System.currentTimeMillis - start) + " created training array")
 		val testingArray = createIndArrayFromStringList(rawStrings, numOfVariables, trainSize, numberOfTimesteps)
-		println(Duration.ofMillis(System.currentTimeMillis-start)+" created testing array")
+		println(Duration.ofMillis(System.currentTimeMillis - start) + " created testing array")
 
 		return new DataFormat(trainSize, numberOfTimesteps, numberOfTimesteps, numOfVariables, trainingArray, testingArray)
 	}
 
-	@org.eclipse.xtend.lib.annotations.Data static class DataFormat {
+	@org.eclipse.xtend.lib.annotations.Data
+	static class DataFormat {
 
 		val int trainSize
 		val int testSize

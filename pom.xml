@@ -108,7 +108,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.nd4j</groupId>
-            <artifactId>${nd4j.backend}</artifactId>
+			<artifactId>${nd4j.backend}</artifactId>
 			<version>0.8.0</version>
 		</dependency>
 		<dependency>
@@ -145,6 +145,11 @@
 			<groupId>com.opencsv</groupId>
 			<artifactId>opencsv</artifactId>
 			<version>3.9</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.oehme.xtend</groupId>
+			<artifactId>xtend-contrib</artifactId>
+			<version>1.1.0</version>
 		</dependency>
 	</dependencies>
 </project>
