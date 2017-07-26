@@ -1,15 +1,25 @@
 package com.sirolf2009.dl4j.rnn
 
+import com.sirolf2009.dl4j.rnn.indicator.RnnCloseIndicator
+import eu.verdelhan.ta4j.Strategy
+import eu.verdelhan.ta4j.analysis.criteria.TotalProfitCriterion
+import eu.verdelhan.ta4j.indicators.simple.ClosePriceIndicator
+import eu.verdelhan.ta4j.trading.rules.OverIndicatorRule
+import eu.verdelhan.ta4j.trading.rules.UnderIndicatorRule
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
-import java.time.Duration
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.List
 import org.datavec.api.records.reader.impl.csv.CSVSequenceRecordReader
 import org.datavec.api.split.NumberedFileInputSplit
 import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator
 import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator.AlignmentMode
+import org.deeplearning4j.earlystopping.EarlyStoppingConfiguration
+import org.deeplearning4j.earlystopping.saver.LocalFileModelSaver
+import org.deeplearning4j.earlystopping.trainer.EarlyStoppingTrainer
 import org.deeplearning4j.nn.api.OptimizationAlgorithm
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration
 import org.deeplearning4j.nn.conf.Updater
@@ -17,6 +27,7 @@ import org.deeplearning4j.nn.conf.layers.GravesLSTM
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
 import org.deeplearning4j.nn.weights.WeightInit
+import org.deeplearning4j.util.ModelSerializer
 import org.jfree.data.xy.XYSeriesCollection
 import org.nd4j.linalg.activations.Activation
 import org.nd4j.linalg.api.ndarray.INDArray
@@ -29,13 +40,12 @@ import static com.sirolf2009.dl4j.rnn.Data.*
 import static extension com.sirolf2009.dl4j.rnn.ChartUtil.*
 import static extension java.nio.file.Files.*
 import static extension org.apache.commons.io.FileUtils.*
-import org.deeplearning4j.ui.api.UIServer
-import org.deeplearning4j.ui.storage.InMemoryStatsStorage
-import org.deeplearning4j.ui.stats.StatsListener
+import org.deeplearning4j.earlystopping.termination.MaxEpochsTerminationCondition
+import java.time.Duration
 
 @org.eclipse.xtend.lib.annotations.Data class RNN {
 
-	static val baseDir = new File("src/main/resources")
+	static val baseDir = new File("data")
 	static val featuresDirTrain = new File(baseDir, "features_train")
 	static val labelsDirTrain = new File(baseDir, "labels_train")
 	static val featuresDirTest = new File(baseDir, "features_test")
@@ -45,10 +55,13 @@ import org.deeplearning4j.ui.stats.StatsListener
 	val int numberOfTimesteps
 	val int miniBatchSize
 	val int epochs
+	val boolean ui
 
 	def train() {
+		println("Preparing data")
 		extension val dataformat = prepareTrainAndTest(numberOfTimesteps, miniBatchSize)
 
+		println("Reading data")
 		val trainFeatures = new CSVSequenceRecordReader()
 		trainFeatures.initialize(new NumberedFileInputSplit('''«featuresDirTrain.absolutePath»/train_%d.csv''', 0, trainSize - 1))
 		val trainLabels = new CSVSequenceRecordReader()
@@ -68,6 +81,7 @@ import org.deeplearning4j.ui.stats.StatsListener
 		trainIter.preProcessor = normalizer
 		testIter.preProcessor = normalizer
 
+		println("Configuring the net")
 		val builder = new NeuralNetConfiguration.Builder() => [
 			optimizationAlgo = OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT
 			iterations(1)
@@ -77,53 +91,70 @@ import org.deeplearning4j.ui.stats.StatsListener
 			learningRate = 0.1
 		]
 		val config = builder.list() => [
-			layer(0, new GravesLSTM.Builder().activation(Activation.TANH).nIn(numOfVariables).nOut(10).build())
-			layer(1, new RnnOutputLayer.Builder(LossFunctions.LossFunction.MSE).activation(Activation.IDENTITY).nIn(10).nOut(numOfVariables).build())
+			layer(0, new GravesLSTM.Builder().activation(Activation.TANH).nIn(numOfVariables).nOut(numOfVariables * 5).build())
+			layer(1, new GravesLSTM.Builder().activation(Activation.TANH).nIn(numOfVariables * 5).nOut(numOfVariables * 5).build())
+			layer(2, new RnnOutputLayer.Builder(LossFunctions.LossFunction.MSE).activation(Activation.IDENTITY).nIn(numOfVariables * 5).nOut(numOfVariables).build())
 		]
 		val net = new MultiLayerNetwork(config.build())
 		net.init()
 
-		val collection = new XYSeriesCollection()
-		collection.createSeries(trainingArray, 0, "Train data")
-		collection.createSeries(testingArray, trainSize - 1, "Actual test data")
-		collection.plotDataset("Training", rawDataFile)
+		val networkFolder = new File("networks", "early-stopping-"+new SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss").format(new Date()))
+		networkFolder.mkdirs()
+		val earlyStopping = new EarlyStoppingConfiguration.Builder().epochTerminationConditions(new MaxEpochsTerminationCondition(50)).scoreCalculator(new ScoreCalculatorBitstamp(numberOfTimesteps)).modelSaver(new LocalFileModelSaver(networkFolder.absolutePath)).build()
+		val earlyStoppingTrainer = new EarlyStoppingTrainer(earlyStopping, net, trainIter)
+		val result = earlyStoppingTrainer.fit()
+	
+		println('''Termination Reason : «result.terminationReason»''')
+		println('''Termination Details: «result.terminationDetails»''')
+		println('''Epochs          : «result.totalEpochs»''')
+		println('''Best Epoch      : «result.bestModelEpoch»''')
+		println('''Best Epoch Score: «result.bestModelScore»''')
 		
-		UIServer.instance => [
-			val storage = new InMemoryStatsStorage()
-			attach(storage)
-			net.listeners = new StatsListener(storage)
-		]
-
-		val start = System.currentTimeMillis()
-		(0 ..< epochs).forEach [
-			net.fit(trainIter)
-			trainIter.reset()
-
-			println('''Epoch «it» complete''')
-			while(trainIter.hasNext()) {
-				val data = trainIter.next()
-				net.rnnTimeStep(data.featureMatrix)
-			}
-			trainIter.reset()
-
-			val data = testIter.next()
-			testIter.reset()
-			val predicted = net.rnnTimeStep(data.featureMatrix)
-			normalizer.revertLabels(predicted)
-
-			collection.createSeries(predicted, trainSize - 1, "Epoch: " + it)
-			net.rnnClearPreviousState()
-		]
-		println("Training completed in " + Duration.ofMillis(System.currentTimeMillis() - start))
-
-		net.predict(trainSize)
-
-		return net
+		return result.bestModel
+//		val collection = new XYSeriesCollection()
+//		collection.createSeries(trainingArray, 0, "Train data")
+//		collection.createSeries(testingArray, trainSize - 1, "Actual test data")
+//		collection.plotDataset("Training", rawDataFile)
+//
+//		if(ui) {
+//			UIServer.instance => [
+//				val storage = new InMemoryStatsStorage()
+//				attach(storage)
+//				net.listeners = new StatsListener(storage)
+//			]
+//		}
+//
+//		val start = System.currentTimeMillis()
+//		(0 ..< epochs).forEach [
+//			net.fit(trainIter)
+//			trainIter.reset()
+//
+//			println('''Epoch «it» complete''')
+//			while(trainIter.hasNext()) {
+//				val data = trainIter.next()
+//				net.rnnTimeStep(data.featureMatrix)
+//			}
+//			trainIter.reset()
+//
+//			val data = testIter.next()
+//			testIter.reset()
+//			val predicted = net.rnnTimeStep(data.featureMatrix)
+//			normalizer.revertLabels(predicted)
+//
+//			collection.createSeries(predicted, trainSize - 1, "Epoch: " + it)
+//			net.rnnClearPreviousState()
+//		]
+//		println("Training completed in " + Duration.ofMillis(System.currentTimeMillis() - start))
+//
+//		net.predict(trainSize)
+//		net.save()
+//
+//		return net
 	}
 
 	def predict(MultiLayerNetwork net, int trainSize) {
 		val db = new Database("http://198.211.120.29:8086")
-		val dataset = db.asDataset(db.getOHLC(trainSize, 1))
+		val dataset = Data.asDataset(db.getOHLC(trainSize, 1))
 
 		val predictData = Data.createIndArrayFromDataset(dataset, numberOfTimesteps)
 		val normalizerP = new NormalizerMinMaxScaler(-1, 1)
@@ -133,13 +164,9 @@ import org.deeplearning4j.ui.stats.StatsListener
 		normalizerP.transform(predictData)
 		val predicted = net.rnnTimeStep(predictData)
 		normalizerP.revertLabels(predicted)
-		val rows = predicted.shape.get(2)
-		(0 ..< rows).forEach [ it, index |
-			println("Close Predicted: " + predicted.slice(0).slice(0).getDouble(it))
-		]
 
 		val collection = new XYSeriesCollection()
-		val RecentArray = createIndArrayFromStringList(db.asCSV(dataset).split("\n"), 5, 0, dataset.get(0).size())
+		val RecentArray = createIndArrayFromStringList(Data.asCSV(dataset).split("\n"), 5, 0, dataset.get(0).size())
 		collection.createSeries(RecentArray, 0, "Recent data")
 		collection.createSeries(predicted, RecentArray.shape.get(2), 0, "Predicted data Close")
 		collection.createSeries(predicted, RecentArray.shape.get(2) - 1, 1, "Predicted data High")
@@ -148,33 +175,55 @@ import org.deeplearning4j.ui.stats.StatsListener
 		collection.plotDataset("Prediction", rawDataFile)
 	}
 
+	def static save(MultiLayerNetwork net) {
+		val locationToSave = new File("networks/" + new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date()) + ".zip")
+		val saveUpdater = true
+		ModelSerializer.writeModel(net, locationToSave, saveUpdater)
+	}
+
+	def static load(String path) {
+		ModelSerializer.restoreMultiLayerNetwork(path)
+	}
+
 	def static void main(String[] args) {
 		val forward = 30
 		val batch = 10
-		val epochs = 50
-		new RNN(forward, batch, epochs) => [
-			new Database("http://198.211.120.29:8086").saveLatestDate(1)
-			train()
+		val epochs = 100
+		val ui = false
+		new RNN(forward, batch, epochs, ui) => [
+//			new Database("http://198.211.120.29:8086").saveLatestDate(1)
+//			val net = train()
+			val net = "networks/early-stopping-2017-07-26T14-32-26/bestModel.bin".load()
+			val series = CsvTradesLoader.loadBitstampSeries(Duration.ofMinutes(15))
+			val indicator = new RnnCloseIndicator(series, net, forward)
+			val closePrice = new ClosePriceIndicator(series)
+			val entryRule = new UnderIndicatorRule(closePrice, indicator)
+			val exitRule = new OverIndicatorRule(closePrice, indicator)
+			val strategy = new Strategy(entryRule, exitRule)
+			val record = series.run(strategy)
+			val criterion = new TotalProfitCriterion()
+			record.forEach [ it, index |
+				println((if(entry.buy) "buy" else "sell") + " at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + criterion.calculate(series, it))
+			]
+			println("Profit: " + new TotalProfitCriterion().calculate(series, record))
+			ChartUtil.plotDataset(ChartUtil.createOHLCSeries(series, "Bitstamp"), ChartUtil.createSeries(indicator, "rnn"), "rnn", "rnn")
 		]
 	}
 
 	def static DataFormat prepareTrainAndTest(int numberOfTimesteps, int miniBatchSize) {
-		val path = new File("src/main/resources/" + rawDataFile).toPath()
+		val start = System.currentTimeMillis()
+		val path = new File("data/" + rawDataFile).toPath()
 		val rawStrings = path.readAllLines
+		println(Duration.ofMillis(System.currentTimeMillis-start)+" read raw data")
 		val numOfVariables = rawStrings.numOfVariables
 
 		featuresDirTrain.clean()
 		labelsDirTrain.clean()
 		featuresDirTest.clean()
 		labelsDirTest.clean()
-		
+
 		val trainingLines = rawStrings.size() - numberOfTimesteps - numberOfTimesteps - numberOfTimesteps
 		val trainSize = trainingLines - (trainingLines % miniBatchSize)
-
-		println("Total          : " + rawStrings.size())
-		println("step           : " + numberOfTimesteps)
-		println("trainSize      : " + trainSize)
-		println("trainingLines  : " + trainingLines)
 
 		(0 .. trainSize).forEach [
 			val featuresPath = Paths.get('''«featuresDirTrain.absolutePath»/train_«it».csv''')
@@ -184,6 +233,7 @@ import org.deeplearning4j.ui.stats.StatsListener
 			]
 			Files.write(labelsPath, rawStrings.get(it + numberOfTimesteps).concat("\n").bytes, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
 		]
+		println(Duration.ofMillis(System.currentTimeMillis-start)+" created training data")
 
 		(trainSize .. (numberOfTimesteps + trainSize)).forEach [
 			val featuresPath = Paths.get('''«featuresDirTest.absolutePath»/test_«it».csv''')
@@ -193,22 +243,25 @@ import org.deeplearning4j.ui.stats.StatsListener
 			]
 			Files.write(labelsPath, rawStrings.get(it + numberOfTimesteps).concat("\n").bytes, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
 		]
-		
+		println(Duration.ofMillis(System.currentTimeMillis-start)+" created testing data")
+
 		val trainingArray = createIndArrayFromStringList(rawStrings, numOfVariables, 0, trainSize)
+		println(Duration.ofMillis(System.currentTimeMillis-start)+" created training array")
 		val testingArray = createIndArrayFromStringList(rawStrings, numOfVariables, trainSize, numberOfTimesteps)
+		println(Duration.ofMillis(System.currentTimeMillis-start)+" created testing array")
 
 		return new DataFormat(trainSize, numberOfTimesteps, numberOfTimesteps, numOfVariables, trainingArray, testingArray)
 	}
-	
+
 	@org.eclipse.xtend.lib.annotations.Data static class DataFormat {
-		
+
 		val int trainSize
 		val int testSize
 		val int numberOfTimesteps
 		val int numOfVariables
 		val INDArray trainingArray
 		val INDArray testingArray
-		
+
 	}
 
 	def static clean(File folder) {

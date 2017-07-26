@@ -131,9 +131,9 @@ class RNNSimple {
 
 	def predict(MultiLayerNetwork net) {
 		val db = new Database("http://198.211.120.29:8086")
-		val dataset = db.asDataset(db.getOHLC(trainSize, 1))
+		val dataset = Data.asDataset(db.getOHLC(trainSize, 1))
 		val file = new File("src/main/resources/temp_0.csv")
-		Files.write(file.toPath, db.asCSV(dataset).split("\n"))
+		Files.write(file.toPath, Data.asCSV(dataset).split("\n"))
 		val predictFeatures = new CSVSequenceRecordReader()
 		predictFeatures.initialize(new NumberedFileInputSplit("src/main/resources/temp_%d.csv", 0, 0))
 		val predictLabels = new CSVSequenceRecordReader()
@@ -165,7 +165,7 @@ class RNNSimple {
 			println('''plotshape(time == «time» ? «price» : na, style=shape.circle, location=location.absolute, color=aqua, offset=«Duration.ofHours(2).toMinutes()»)''')
 		]
 		val collection = new XYSeriesCollection()
-		val RecentArray = createIndArrayFromStringList(db.asCSV(dataset).split("\n"), 5, 0, dataset.get(0).size())
+		val RecentArray = createIndArrayFromStringList(Data.asCSV(dataset).split("\n"), 5, 0, dataset.get(0).size())
 		collection.createSeries(RecentArray, 0, "Recent data")
 		collection.createSeries(predicted, RecentArray.shape.get(2), 0, "Predicted data Close")
 		collection.createSeries(predicted, RecentArray.shape.get(2) - 1, 1, "Predicted data High")

@@ -1,9 +1,14 @@
 package com.sirolf2009.dl4j.rnn
 
 import com.sirolf2009.dl4j.rnn.model.Dataset
+import com.sirolf2009.dl4j.rnn.model.Point
+import com.sirolf2009.dl4j.rnn.model.TimeSeries
+import java.text.SimpleDateFormat
 import java.util.List
-import org.nd4j.linalg.factory.Nd4j
 import java.util.stream.Collectors
+import java.util.stream.Stream
+import org.influxdb.dto.QueryResult.Series
+import org.nd4j.linalg.factory.Nd4j
 
 class Data {
 	
@@ -36,6 +41,29 @@ class Data {
 		].collect(Collectors.groupingBy([value.time])).entrySet.stream.sorted[a,b|a.key.compareTo(b.key)].limit(forward).map[
 			value.stream.sorted[a,b|a.key.compareTo(b.key)].map[value.value].collect(Collectors.toList())
 		].collect(Collectors.toList())
+	}
+	
+	def static asDataset(Series series) {
+		val dataset = new Dataset()
+		dataset += series.values.parallelStream.filter[!(get(0) as String).isEmpty].filter[get(1) !== null].flatMap [
+			val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
+			val date = sdf.parse(get(0) as String)
+			val open = "open" -> new Point(get(1) as Double, date)
+			val high = "high" -> new Point(get(2) as Double, date)
+			val low = "low" -> new Point(get(3) as Double, date)
+			val close = "close" -> new Point(get(4) as Double, date)
+			val vol = "vol" -> new Point(get(5) as Double, date)
+			return Stream.of(open, high, low, close, vol)
+		].filter[value !== null].collect(Collectors.groupingBy([key], Collectors.mapping([value], Collectors.toList))).entrySet.map [
+			new TimeSeries(key, value.stream.sorted[a, b|a.time.compareTo(b.time)].collect(Collectors.toList))
+		].sortWith[a,b|a.name.compareTo(b.name)]
+		dataset
+	}
+
+	def static asCSV(Dataset dataset) {
+		dataset.stream.flatMap[stream.map[point|name -> point]].collect(Collectors.groupingBy([value.getTime()])).entrySet.stream.sorted[a, b|a.key.compareTo(b.key)].map [
+			value.stream.sorted[a, b|a.key.compareTo(b.key)].map[value.value + ""].reduce[a, b|a + ", " + b].orElse("")
+		].reduce[a, b|a + "\n" + b].orElse("")
 	}
 	
 }

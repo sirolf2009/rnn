@@ -9,6 +9,8 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<xtend.version>2.11.0</xtend.version>
+		<nd4j.backend>nd4j-native-platform</nd4j.backend>
+		<!-- <nd4j.backend>nd4j-cuda-8.0-platform</nd4j.backend> -->
 	</properties>
 	<build>
 		<plugins>
@@ -70,6 +72,21 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>1.6.0</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>java</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<mainClass>com.sirolf2009.dl4j.rnn.RNN</mainClass>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 	<dependencies>
@@ -91,7 +108,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.nd4j</groupId>
-			<artifactId>nd4j-native-platform</artifactId>
+            <artifactId>${nd4j.backend}</artifactId>
 			<version>0.8.0</version>
 		</dependency>
 		<dependency>
@@ -118,6 +135,16 @@
 			<groupId>org.influxdb</groupId>
 			<artifactId>influxdb-java</artifactId>
 			<version>2.7</version>
+		</dependency>
+		<dependency>
+			<groupId>eu.verdelhan</groupId>
+			<artifactId>ta4j</artifactId>
+			<version>0.9-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>com.opencsv</groupId>
+			<artifactId>opencsv</artifactId>
+			<version>3.9</version>
 		</dependency>
 	</dependencies>
 </project>
