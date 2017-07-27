@@ -36,10 +36,11 @@ class RnnCloseIndicator extends CachedIndicator<Decimal> {
 		val predicted = net.output(input, true)
 		normalizer.revertLabels(predicted)
 		//shape 1,5,forward
-		val now = predicted.slice(0).slice(0).getDouble(0)
+//		val now = predicted.slice(0).slice(0).getDouble(0)
 		val future =predicted.slice(0).slice(0).getDouble(forward-1)
-		val diff = future - now
-		return timeSeries.getTick(index).closePrice.plus(Decimal.valueOf(diff))
+//		val diff = future - now
+//		return timeSeries.getTick(index).closePrice.plus(Decimal.valueOf(diff))
+		return Decimal.valueOf(future)
 	}
 	
 	def getDataset(eu.verdelhan.ta4j.TimeSeries series) {

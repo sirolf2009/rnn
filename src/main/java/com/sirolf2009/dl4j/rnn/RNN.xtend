@@ -97,7 +97,7 @@ class RNN {
 
 		val networkFolder = new File("networks", "early-stopping-" + new SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss").format(new Date()))
 		networkFolder.mkdirs()
-		val earlyStopping = new EarlyStoppingConfiguration.Builder().epochTerminationConditions(new MaxEpochsTerminationCondition(50)).scoreCalculator(new ScoreCalculatorBitstamp(numberOfTimesteps)).modelSaver(new LocalFileModelSaver(networkFolder.absolutePath)).build()
+		val earlyStopping = new EarlyStoppingConfiguration.Builder().epochTerminationConditions(new MaxEpochsTerminationCondition(epochs)).scoreCalculator(new ScoreCalculatorBitstamp(numberOfTimesteps)).modelSaver(new LocalFileModelSaver(networkFolder.absolutePath)).build()
 		val earlyStoppingTrainer = new EarlyStoppingTrainer(earlyStopping, net, trainIter)
 		val result = earlyStoppingTrainer.fit()
 
@@ -179,21 +179,29 @@ class RNN {
 	}
 
 	def static load(String path) {
-		ModelSerializer.restoreMultiLayerNetwork(path)
+		println("Loading from "+path)
+		val net = ModelSerializer.restoreMultiLayerNetwork(path)
+		println("Network loaded")
+		return net
 	}
 
 	def static void main(String[] args) {
 		val forward = 30
 		val batch = 10
-		val epochs = 100
+		val epochs = 50
 		val ui = false
 		new RNN(forward, batch, epochs, ui) => [
 //			new Database("http://198.211.120.29:8086").saveLatestDate(1)
 //			val net = train()
-			val net = "networks/early-stopping-2017-07-26T14-32-26/bestModel.bin".load()
+			val net = "networks/early-stopping-2017-07-27T12-27-26/bestModel2.bin".load()
+			println("Loading timeseries")
+//			val series = CsvTradesLoader.loadBitstampSeries(Duration.ofMinutes(1))
 			val series = DataLoader.loadOHLCV2017
+			println("Creating indicator")
 			val indicator = new RnnCloseIndicator(series, net, forward)
+			println("Backtesting long")
 			val backTestLong = ScoreCalculatorBitstamp.backtestLong(net, indicator, forward)
+			println("Backtesting short")
 			val backTestShort = ScoreCalculatorBitstamp.backtestShort(net, indicator, forward)
 			backTestLong.forEach [ it, index |
 				println((if(entry.buy) "buy" else "sell") + " at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + (exit.price.toDouble-entry.price.toDouble))

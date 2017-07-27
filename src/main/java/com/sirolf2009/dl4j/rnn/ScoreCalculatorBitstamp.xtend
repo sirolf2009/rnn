@@ -9,12 +9,13 @@ import eu.verdelhan.ta4j.trading.rules.OverIndicatorRule
 import eu.verdelhan.ta4j.trading.rules.UnderIndicatorRule
 import org.deeplearning4j.earlystopping.scorecalc.ScoreCalculator
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
+import java.time.Duration
 
 @org.eclipse.xtend.lib.annotations.Data
 class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
 
 	val int numberOfTimesteps
-	val series = DataLoader.loadOHLCV2017
+	val series = CsvTradesLoader.loadBitstampSeries(Duration.ofMinutes(1))
 
 	override calculateScore(MultiLayerNetwork net) {
 		net.rnnClearPreviousState()
@@ -23,8 +24,8 @@ class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
 		val backTestShort = net.backtestShort(indicator, numberOfTimesteps)
 		val profitLong = new TotalProfitCriterion().calculate(series, backTestLong);
 		val profitShort = new TotalProfitCriterion().calculate(series, backTestShort);
-		println("Profit Long : " + profitLong)
-		println("Profit Short: " + profitShort)
+		println("Profit Long : " + profitLong+" over "+backTestLong.tradeCount+" trades")
+		println("Profit Short: " + profitShort+" over "+backTestLong.tradeCount+" trades")
 		net.rnnClearPreviousState()
 		return 1 / ((profitLong+profitShort)/2)
 	}
