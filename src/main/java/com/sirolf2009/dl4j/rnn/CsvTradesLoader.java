@@ -51,7 +51,6 @@ public class CsvTradesLoader {
 				}
 			}
 
-			List<Tick> ticks = null;
 			if ((lines != null) && !lines.isEmpty()) {
 
 				// Getting the first and last trades timestamps
@@ -70,24 +69,36 @@ public class CsvTradesLoader {
 					Collections.reverse(lines);
 				}
 				// Building the empty ticks (every 300 seconds, yeah welcome in Bitcoin world)
-				ticks = buildEmptyTicks(beginTime, endTime, (int) interval.getSeconds());
+				List<Tick> ticks = buildEmptyTicks(beginTime, endTime, (int) interval.getSeconds());
 				// Filling the ticks with trades
-				for (String[] tradeLine : lines) {
+				lines.parallelStream().forEach(tradeLine -> {
 					ZonedDateTime tradeTimestamp = ZonedDateTime.ofInstant(
 							Instant.ofEpochMilli(Long.parseLong(tradeLine[0]) * 1000), ZoneId.systemDefault());
-					for (Tick tick : ticks) {
+					ticks.parallelStream().forEach(tick -> {
 						if (tick.inPeriod(tradeTimestamp)) {
 							double tradePrice = Double.parseDouble(tradeLine[1]);
 							double tradeAmount = Double.parseDouble(tradeLine[2]);
 							tick.addTrade(tradeAmount, tradePrice);
 						}
-					}
-				}
+					});
+				});
+//				for (String[] tradeLine : lines) {
+//					ZonedDateTime tradeTimestamp = ZonedDateTime.ofInstant(
+//							Instant.ofEpochMilli(Long.parseLong(tradeLine[0]) * 1000), ZoneId.systemDefault());
+//					for (Tick tick : ticks) {
+//						if (tick.inPeriod(tradeTimestamp)) {
+//							double tradePrice = Double.parseDouble(tradeLine[1]);
+//							double tradeAmount = Double.parseDouble(tradeLine[2]);
+//							tick.addTrade(tradeAmount, tradePrice);
+//						}
+//					}
+//				}
 				// Removing still empty ticks
 				removeEmptyTicks(ticks);
+				return new TimeSeries("bitstamp_trades", ticks);
 			}
 
-			return new TimeSeries("bitstamp_trades", ticks);
+			throw new IllegalArgumentException("An empty file has been provided!");
 		} catch (FileNotFoundException e) {
 			throw new RuntimeException(e);
 		}

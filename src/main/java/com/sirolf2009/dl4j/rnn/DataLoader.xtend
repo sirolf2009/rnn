@@ -1,19 +1,22 @@
 package com.sirolf2009.dl4j.rnn
 
+import de.oehme.xtend.contrib.Cached
+import eu.verdelhan.ta4j.Tick
+import eu.verdelhan.ta4j.TimeSeries
 import java.io.File
 import java.nio.file.Files
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.List
-import eu.verdelhan.ta4j.Tick
-import eu.verdelhan.ta4j.TimeSeries
 
 import static extension java.lang.Double.parseDouble
 
 class DataLoader {
 	
-	def static loadOHLCV2017() {
+	@Cached
+	def static TimeSeries loadOHLCV2017() {
 		loadOHLCV("data/ohlc-2017.csv", "ohlc-2017");
 	}
 	
@@ -36,6 +39,11 @@ class DataLoader {
 			val volume = cols.get(4).parseDouble()
 			return new Tick(date, open, high, low, close, volume) 
 		])
+	}
+	
+	@Cached
+	def static TimeSeries loadBitstampSeries(Duration interval) {
+		return CsvTradesLoader.loadBitstampSeries(interval)
 	}
 	
 }

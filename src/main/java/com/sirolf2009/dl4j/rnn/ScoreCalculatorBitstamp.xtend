@@ -15,19 +15,25 @@ import java.time.Duration
 class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
 
 	val int numberOfTimesteps
-	val series = CsvTradesLoader.loadBitstampSeries(Duration.ofMinutes(1))
+	val series = DataLoader.loadBitstampSeries(Duration.ofMinutes(1))
+	val dataset = RnnCloseIndicator.getDataset(series)
 
 	override calculateScore(MultiLayerNetwork net) {
+		println("Calculating Score...")
+		val start = System.currentTimeMillis()
 		net.rnnClearPreviousState()
-		val indicator = new RnnCloseIndicator(series, net, numberOfTimesteps)
+		val indicator = new RnnCloseIndicator(series, dataset, net, numberOfTimesteps)
 		val backTestLong = net.backtestLong(indicator, numberOfTimesteps)
 		val backTestShort = net.backtestShort(indicator, numberOfTimesteps)
+		println("Simulating...")
 		val profitLong = new TotalProfitCriterion().calculate(series, backTestLong);
+		println("Simulated Long in "+Duration.ofMillis(System.currentTimeMillis-start))
 		val profitShort = new TotalProfitCriterion().calculate(series, backTestShort);
-		println("Profit Long : " + profitLong+" over "+backTestLong.tradeCount+" trades")
-		println("Profit Short: " + profitShort+" over "+backTestLong.tradeCount+" trades")
+		println("Simulated Short in "+Duration.ofMillis(System.currentTimeMillis-start))
+		println("Profit Long : " + profitLong+" over "+backTestLong.tradeCount+" trades. With fees: "+(profitLong - backTestLong.tradeCount * 0.004))
+		println("Profit Short: " + profitShort+" over "+backTestShort.tradeCount+" trades. With fees: "+(profitShort - backTestShort.tradeCount * 0.004))
 		net.rnnClearPreviousState()
-		return 1 / ((profitLong+profitShort)/2)
+		return 1 / (((profitLong - backTestLong.tradeCount * 0.002)+(profitShort - backTestShort.tradeCount * 0.002))/2)
 	}
 
 	def static backtestLong(MultiLayerNetwork net, RnnCloseIndicator indicator, int forward) {

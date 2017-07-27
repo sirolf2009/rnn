@@ -1,7 +1,6 @@
 package com.sirolf2009.dl4j.rnn
 
 import com.sirolf2009.dl4j.rnn.indicator.RnnCloseIndicator
-import eu.verdelhan.ta4j.analysis.criteria.TotalProfitCriterion
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -195,22 +194,28 @@ class RNN {
 //			val net = train()
 			val net = "networks/early-stopping-2017-07-27T12-27-26/bestModel2.bin".load()
 			println("Loading timeseries")
-//			val series = CsvTradesLoader.loadBitstampSeries(Duration.ofMinutes(1))
-			val series = DataLoader.loadOHLCV2017
+			val series = DataLoader.loadBitstampSeries(Duration.ofMinutes(1))
+//			val series = DataLoader.loadOHLCV2017
 			println("Creating indicator")
 			val indicator = new RnnCloseIndicator(series, net, forward)
 			println("Backtesting long")
 			val backTestLong = ScoreCalculatorBitstamp.backtestLong(net, indicator, forward)
 			println("Backtesting short")
 			val backTestShort = ScoreCalculatorBitstamp.backtestShort(net, indicator, forward)
-			backTestLong.forEach [ it, index |
-				println((if(entry.buy) "buy" else "sell") + " at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + (exit.price.toDouble-entry.price.toDouble))
-			]
-			backTestShort.forEach [ it, index |
-				println((if(entry.buy) "buy" else "sell") + " at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + (entry.price.toDouble-exit.price.toDouble))
-			]
-			println("Profit Long : " + new TotalProfitCriterion().calculate(series, backTestLong))
-			println("Profit Short: " + new TotalProfitCriterion().calculate(series, backTestShort))
+			val profitLong = backTestLong.map [
+				val profitForTrade = (exit.price.toDouble-entry.price.toDouble)
+				val fees = (entry.price.toDouble*0.002+exit.price.toDouble*0.002)
+				println("buy at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + profitForTrade+" Fees: "+fees)
+				profitForTrade - fees
+			].reduce[a,b|a+b]
+			val profitShort = backTestShort.map [
+				val profitForTrade = (entry.price.toDouble-exit.price.toDouble)
+				val fees = (entry.price.toDouble*0.002+exit.price.toDouble*0.002)
+				println("sell at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + profitForTrade+" Fees: "+fees)
+				profitForTrade - fees
+			].reduce[a,b|a+b]
+			println("Profit Long : " + profitLong)
+			println("Profit Short: " + profitShort)
 			ChartUtil.plotDataset(ChartUtil.createOHLCSeries(series, "Bitstamp"), ChartUtil.createSeries(indicator, "rnn"), "rnn", "rnn")
 		]
 	}
@@ -230,7 +235,7 @@ class RNN {
 		val trainingLines = rawStrings.size() - numberOfTimesteps - numberOfTimesteps - numberOfTimesteps
 		val trainSize = trainingLines - (trainingLines % miniBatchSize)
 
-		(0 .. trainSize).forEach [
+		(0 .. trainSize).toList.parallelStream.forEach [
 			val featuresPath = Paths.get('''«featuresDirTrain.absolutePath»/train_«it».csv''')
 			val labelsPath = Paths.get('''«labelsDirTrain.absolutePath»/train_«it».csv''')
 			(0 .. numberOfTimesteps).forEach [ step |
@@ -240,7 +245,7 @@ class RNN {
 		]
 		println(Duration.ofMillis(System.currentTimeMillis - start) + " created training data")
 
-		(trainSize .. (numberOfTimesteps + trainSize)).forEach [
+		(trainSize .. (numberOfTimesteps + trainSize)).toList.parallelStream.forEach [
 			val featuresPath = Paths.get('''«featuresDirTest.absolutePath»/test_«it».csv''')
 			val labelsPath = Paths.get('''«labelsDirTest.absolutePath»/test_«it».csv''')
 			(0 .. numberOfTimesteps).forEach [ step |

@@ -3,11 +3,13 @@ package com.sirolf2009.dl4j.rnn
 import com.sirolf2009.dl4j.rnn.model.Dataset
 import com.sirolf2009.dl4j.rnn.model.Point
 import com.sirolf2009.dl4j.rnn.model.TimeSeries
+import de.oehme.xtend.contrib.Cached
 import java.text.SimpleDateFormat
 import java.util.List
 import java.util.stream.Collectors
 import java.util.stream.Stream
 import org.influxdb.dto.QueryResult.Series
+import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
 
 class Data {
@@ -24,7 +26,8 @@ class Data {
 		return Nd4j.create(#[1, length], primitives)
 	}
 	
-	def static createIndArrayFromDataset(Dataset dataset, int forward) {
+	@Cached
+	def static INDArray createIndArrayFromDataset(Dataset dataset, int forward) {
 		val initializationInput = Nd4j.zeros(1, dataset.size(), forward)
 		val matrix = dataset.asMatrix(forward)
 		matrix.forEach[array,i|
