@@ -3,13 +3,12 @@ package com.sirolf2009.dl4j.rnn
 import com.sirolf2009.dl4j.rnn.indicator.RnnCloseIndicator
 import eu.verdelhan.ta4j.Order.OrderType
 import eu.verdelhan.ta4j.Strategy
-import eu.verdelhan.ta4j.analysis.criteria.TotalProfitCriterion
 import eu.verdelhan.ta4j.indicators.simple.ClosePriceIndicator
 import eu.verdelhan.ta4j.trading.rules.OverIndicatorRule
 import eu.verdelhan.ta4j.trading.rules.UnderIndicatorRule
+import java.time.Duration
 import org.deeplearning4j.earlystopping.scorecalc.ScoreCalculator
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
-import java.time.Duration
 
 @org.eclipse.xtend.lib.annotations.Data
 class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
@@ -26,14 +25,14 @@ class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
 		val backTestLong = net.backtestLong(indicator, numberOfTimesteps)
 		val backTestShort = net.backtestShort(indicator, numberOfTimesteps)
 		println("Simulating...")
-		val profitLong = new TotalProfitCriterion().calculate(series, backTestLong);
+		val profitLong = new AbsoluteProfitCriterion().calculate(series, backTestLong);
 		println("Simulated Long in "+Duration.ofMillis(System.currentTimeMillis-start))
-		val profitShort = new TotalProfitCriterion().calculate(series, backTestShort);
+		val profitShort = new AbsoluteProfitCriterion().calculate(series, backTestShort);
 		println("Simulated Short in "+Duration.ofMillis(System.currentTimeMillis-start))
-		println("Profit Long : " + profitLong+" over "+backTestLong.tradeCount+" trades. With fees: "+(profitLong - backTestLong.tradeCount * 0.004))
-		println("Profit Short: " + profitShort+" over "+backTestShort.tradeCount+" trades. With fees: "+(profitShort - backTestShort.tradeCount * 0.004))
+		println("Profit Long : " + profitLong+" over "+backTestLong.tradeCount+" trades")
+		println("Profit Short: " + profitShort+" over "+backTestShort.tradeCount+" trades")
 		net.rnnClearPreviousState()
-		return 1 / (((profitLong - backTestLong.tradeCount * 0.002)+(profitShort - backTestShort.tradeCount * 0.002))/2)
+		return 1 / (profitLong+profitShort)
 	}
 
 	def static backtestLong(MultiLayerNetwork net, RnnCloseIndicator indicator, int forward) {

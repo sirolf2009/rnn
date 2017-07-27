@@ -10,7 +10,6 @@ import java.util.Date
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
 import org.nd4j.linalg.dataset.DataSet
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerMinMaxScaler
-import java.time.Duration
 
 class RnnCloseIndicator extends CachedIndicator<Decimal> {
 
@@ -49,7 +48,6 @@ class RnnCloseIndicator extends CachedIndicator<Decimal> {
 	}
 	
 	def static getDataset(eu.verdelhan.ta4j.TimeSeries series) {
-		val start = System.currentTimeMillis 
 		val open = newArrayList()
 		val high = newArrayList()
 		val low = newArrayList()
@@ -70,7 +68,6 @@ class RnnCloseIndicator extends CachedIndicator<Decimal> {
 		dataset += new TimeSeries("Low", low)
 		dataset += new TimeSeries("Close", close)
 		dataset += new TimeSeries("Volume", vol)
-		println("Indicator Dataset created in "+Duration.ofMillis(System.currentTimeMillis-start))
 		return dataset
 	}
 

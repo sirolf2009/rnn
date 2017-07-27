@@ -185,14 +185,14 @@ class RNN {
 	}
 
 	def static void main(String[] args) {
-		val forward = 30
+		val forward = 60
 		val batch = 10
 		val epochs = 50
 		val ui = false
 		new RNN(forward, batch, epochs, ui) => [
 //			new Database("http://198.211.120.29:8086").saveLatestDate(1)
-//			val net = train()
-			val net = "networks/early-stopping-2017-07-27T12-27-26/bestModel2.bin".load()
+			val net = train()
+//			val net = "networks/early-stopping-2017-07-27T12-27-26/bestModel.bin".load()
 			println("Loading timeseries")
 			val series = DataLoader.loadBitstampSeries(Duration.ofMinutes(1))
 //			val series = DataLoader.loadOHLCV2017
