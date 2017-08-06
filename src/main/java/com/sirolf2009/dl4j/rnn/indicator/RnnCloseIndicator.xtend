@@ -41,7 +41,7 @@ class RnnCloseIndicator extends CachedIndicator<Decimal> {
 		normalizer.revertLabels(predicted)
 		//shape 1,5,forward
 //		val now = predicted.slice(0).slice(0).getDouble(0)
-		val future =predicted.slice(0).slice(0).getDouble(forward-1)
+		val future = predicted.slice(0).slice(0).getDouble(forward-1)
 //		val diff = future - now
 //		return timeSeries.getTick(index).closePrice.plus(Decimal.valueOf(diff))
 		return Decimal.valueOf(future)

@@ -1,6 +1,5 @@
 package com.sirolf2009.dl4j.rnn
 
-import de.oehme.xtend.contrib.Cached
 import eu.verdelhan.ta4j.Tick
 import eu.verdelhan.ta4j.TimeSeries
 import java.io.File
@@ -15,7 +14,6 @@ import static extension java.lang.Double.parseDouble
 
 class DataLoader {
 	
-	@Cached
 	def static TimeSeries loadOHLCV2017() {
 		loadOHLCV("data/ohlc-2017.csv", "ohlc-2017");
 	}
@@ -41,7 +39,6 @@ class DataLoader {
 		])
 	}
 	
-	@Cached
 	def static TimeSeries loadBitstampSeries(Duration interval) {
 		return CsvTradesLoader.loadBitstampSeries(interval)
 	}

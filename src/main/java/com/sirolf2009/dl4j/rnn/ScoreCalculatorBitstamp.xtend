@@ -6,9 +6,9 @@ import eu.verdelhan.ta4j.Strategy
 import eu.verdelhan.ta4j.indicators.simple.ClosePriceIndicator
 import eu.verdelhan.ta4j.trading.rules.OverIndicatorRule
 import eu.verdelhan.ta4j.trading.rules.UnderIndicatorRule
-import java.time.Duration
 import org.deeplearning4j.earlystopping.scorecalc.ScoreCalculator
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
+import java.time.Duration
 
 @org.eclipse.xtend.lib.annotations.Data
 class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
@@ -18,17 +18,12 @@ class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
 	val dataset = RnnCloseIndicator.getDataset(series)
 
 	override calculateScore(MultiLayerNetwork net) {
-		println("Calculating Score...")
-		val start = System.currentTimeMillis()
 		net.rnnClearPreviousState()
 		val indicator = new RnnCloseIndicator(series, dataset, net, numberOfTimesteps)
 		val backTestLong = net.backtestLong(indicator, numberOfTimesteps)
 		val backTestShort = net.backtestShort(indicator, numberOfTimesteps)
-		println("Simulating...")
 		val profitLong = new AbsoluteProfitCriterion().calculate(series, backTestLong);
-		println("Simulated Long in "+Duration.ofMillis(System.currentTimeMillis-start))
 		val profitShort = new AbsoluteProfitCriterion().calculate(series, backTestShort);
-		println("Simulated Short in "+Duration.ofMillis(System.currentTimeMillis-start))
 		println("Profit Long : " + profitLong+" over "+backTestLong.tradeCount+" trades")
 		println("Profit Short: " + profitShort+" over "+backTestShort.tradeCount+" trades")
 		net.rnnClearPreviousState()

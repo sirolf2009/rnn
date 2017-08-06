@@ -112,19 +112,9 @@
 			<version>0.8.0</version>
 		</dependency>
 		<dependency>
-			<groupId>org.deeplearning4j</groupId>
-			<artifactId>deeplearning4j-ui_2.10</artifactId>
-			<version>0.8.0</version>
-		</dependency>
-		<dependency>
 			<groupId>org.jfree</groupId>
 			<artifactId>jfreechart</artifactId>
 			<version>1.0.19</version>
-		</dependency>
-		<dependency>
-			<groupId>org.ektorp</groupId>
-			<artifactId>org.ektorp</artifactId>
-			<version>1.4.4</version>
 		</dependency>
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
@@ -145,11 +135,6 @@
 			<groupId>com.opencsv</groupId>
 			<artifactId>opencsv</artifactId>
 			<version>3.9</version>
-		</dependency>
-		<dependency>
-			<groupId>com.github.oehme.xtend</groupId>
-			<artifactId>xtend-contrib</artifactId>
-			<version>1.1.0</version>
 		</dependency>
 	</dependencies>
 </project>

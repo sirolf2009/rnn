@@ -26,7 +26,6 @@ class Data {
 		return Nd4j.create(#[1, length], primitives)
 	}
 	
-	@Cached
 	def static INDArray createIndArrayFromDataset(Dataset dataset, int forward) {
 		val initializationInput = Nd4j.zeros(1, dataset.size(), forward)
 		val matrix = dataset.asMatrix(forward)
