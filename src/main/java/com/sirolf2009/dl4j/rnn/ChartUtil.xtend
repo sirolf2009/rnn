@@ -59,7 +59,7 @@ class ChartUtil {
 		frame.pack()
 		frame.title = titleFrame
 		RefineryUtilities.centerFrameOnScreen(frame)
-		frame.visible = true
+//		frame.visible = true
 //		frame.showOnScreen(2)
 		frame.setExtendedState(frame.getExtendedState().bitwiseOr(JFrame.MAXIMIZED_BOTH))
 	}

@@ -24,8 +24,6 @@ class ScoreCalculatorBitstamp implements ScoreCalculator<MultiLayerNetwork> {
 		val backTestShort = net.backtestShort(indicator, numberOfTimesteps)
 		val profitLong = new AbsoluteProfitCriterion().calculate(series, backTestLong);
 		val profitShort = new AbsoluteProfitCriterion().calculate(series, backTestShort);
-		println("Profit Long : " + profitLong+" over "+backTestLong.tradeCount+" trades")
-		println("Profit Short: " + profitShort+" over "+backTestShort.tradeCount+" trades")
 		net.rnnClearPreviousState()
 		return 1 / (profitLong+profitShort)
 	}

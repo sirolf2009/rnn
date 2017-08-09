@@ -10,7 +10,6 @@ import java.text.SimpleDateFormat
 import java.time.Duration
 import java.util.Date
 import org.deeplearning4j.earlystopping.EarlyStoppingConfiguration
-import org.deeplearning4j.earlystopping.saver.LocalFileModelSaver
 import org.deeplearning4j.earlystopping.termination.MaxEpochsTerminationCondition
 import org.deeplearning4j.earlystopping.trainer.EarlyStoppingTrainer
 import org.deeplearning4j.eval.RegressionEvaluation
@@ -37,18 +36,17 @@ import static extension com.sirolf2009.dl4j.rnn.ChartUtil.*
 @org.eclipse.xtend.lib.annotations.Data
 class RNN {
 
-	static val rawDataFile = "orderbook2.csv"
+	static val rawDataFile = "ohlc-2017.csv"
 
 	val int numberOfTimesteps
 	val int miniBatchSize
 	val int epochs
 
 	def train() {
-		extension val dataformat = new ProgressBar.Builder().name("Preparing Data").action(new PrepareData(rawDataFile, numberOfTimesteps, miniBatchSize)).style(Styles.ASCII).terminalWidth(250).build().get()
+		extension val dataformat = new ProgressBar.Builder().name("Preparing "+rawDataFile).action(new PrepareData(rawDataFile, numberOfTimesteps, miniBatchSize)).style(Styles.ASCII).terminalWidth(250).build().get()
 
 		println("Reading data with " + numOfVariables + " columns")
 		extension val datasets = Data.getData(dataformat)
-		val normalizer = Data.normalize(#[testData, trainData])
 
 		println("Configuring the net")
 		val builder = new NeuralNetConfiguration.Builder() => [
@@ -68,82 +66,12 @@ class RNN {
 		net.init()
 
 		println("Training")
-//		return net.visualTraining(testData, trainData, normalizer, dataformat)
-		return net.earlyStoppingTraining(trainData)
-	}
-
-	def visualTraining(MultiLayerNetwork net, DataSetIterator testData, DataSetIterator trainData, DataNormalization normalizer, extension DataFormat format) {
-		val locationToSave = new File("networks/" + new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date()) + ".zip")
-
-		val collection = new XYSeriesCollection()
-		collection.createSeries(trainingArray, 0, 0, "Train Bid")
-		collection.createSeries(trainingArray, 0, 30, "Train Ask")
-		collection.createSeries(testingArray, trainSize - 1, 0, "Bid")
-		collection.createSeries(testingArray, trainSize - 1, 30, "Ask")
-		collection.plotDataset("Training", rawDataFile)
-
-		val start = System.currentTimeMillis()
-		(0 ..< epochs).forEach [
-			net.fit(trainData)
-			trainData.reset()
-
-			println('''Epoch «it» complete''')
-			while(trainData.hasNext()) {
-				val data = trainData.next()
-				net.rnnTimeStep(data.featureMatrix)
-			}
-			trainData.reset()
-
-			val data = testData.next()
-			testData.reset()
-			val predicted = net.rnnTimeStep(data.featureMatrix)
-			normalizer.revertLabels(predicted)
-
-			collection.createSeries(predicted, trainSize - 1, 0, true, "Bid at epoch: " + it)
-//			collection.createSeries(predicted, trainSize - 1, 31, true, "Ask at epoch: " + it)
-			net.rnnClearPreviousState()
-
-			net.save(locationToSave)
-
-			net.showRegressionEvaluation(testData, numOfVariables)
-		]
-		println("Training completed in " + Duration.ofMillis(System.currentTimeMillis() - start))
-		return net
-	}
-
-	def earlyStoppingTraining(MultiLayerNetwork net, DataSetIterator trainIter) {
-		val networkFolder = new File("networks", "early-stopping-" + new SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss").format(new Date()))
-		networkFolder.mkdirs()
-		val earlyStopping = new EarlyStoppingConfiguration.Builder().epochTerminationConditions(new MaxEpochsTerminationCondition(epochs)).evaluateEveryNEpochs(1).scoreCalculator(new ScoreCalculatorBitstamp(numberOfTimesteps)).build()
-		val earlyStoppingTrainer = new EarlyStoppingTrainer(earlyStopping, net, trainIter)
-		val result = earlyStoppingTrainer.fit()
-
-		println('''Termination Reason : «result.terminationReason»''')
-		println('''Termination Details: «result.terminationDetails»''')
-		println('''Epochs          : «result.totalEpochs»''')
-		println('''Best Epoch      : «result.bestModelEpoch»''')
-		println('''Best Epoch Score: «result.bestModelScore»''')
-		result.bestModel
-	}
-
-	def showRegressionEvaluation(MultiLayerNetwork net, DataSetIterator testDataIter, int numOfVariables) {
-		val evaluation = new RegressionEvaluation(numOfVariables)
-
-		while(testDataIter.hasNext()) {
-			val t = testDataIter.next()
-			val features = t.getFeatureMatrix()
-			val labels = t.getLabels()
-			val predicted = net.output(features, true)
-
-			evaluation.evalTimeSeries(labels, predicted)
-		}
-
-		System.out.println(evaluation.stats())
-		testDataIter.reset()
+//		return new ProgressBar.Builder().name("Training").action(new Training.VisualTraining(net, rawDataFile, datasets, normalizer, dataformat, epochs)).style(Styles.ASCII).terminalWidth(250).build().get()
+		return new ProgressBar.Builder().name("Training").action(new Training.EarlyStoppingTraining(net, datasets, epochs, numberOfTimesteps)).style(Styles.ASCII).terminalWidth(250).build().get()
 	}
 
 	def predict(MultiLayerNetwork net, int trainSize) {
-		val db = new Database("http://198.211.120.29:8086")
+		val db = new Database("http://database:8086")
 		val dataset = Data.asDataset(db.getOHLC(trainSize, 1))
 
 		val predictData = Data.createIndArrayFromDataset(dataset, numberOfTimesteps)
@@ -183,7 +111,7 @@ class RNN {
 	}
 
 	def static void main(String[] args) {
-		val forward = 10
+		val forward = 60
 		val batch = 1
 		val epochs = 10
 		new RNN(forward, batch, epochs) => [
@@ -191,29 +119,6 @@ class RNN {
 			val net = train()
 			net.save()
 //			val net = "networks/early-stopping-2017-07-27T20-08-30/bestModel.bin".load()
-			println("Loading timeseries")
-			val series = DataLoader.loadBitstampSeries(Duration.ofMinutes(1))
-			println("Creating indicator")
-			val indicator = new RnnCloseIndicator(series, net, forward)
-			println("Backtesting long")
-			val backTestLong = ScoreCalculatorBitstamp.backtestLong(net, indicator, forward)
-			println("Backtesting short")
-			val backTestShort = ScoreCalculatorBitstamp.backtestShort(net, indicator, forward)
-			val profitLong = backTestLong.map [
-				val profitForTrade = (exit.price.toDouble - entry.price.toDouble)
-				val fees = (entry.price.toDouble * 0.002 + exit.price.toDouble * 0.002)
-				println("buy at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + (profitForTrade - fees))
-				profitForTrade - fees
-			].reduce[a, b|a + b]
-			val profitShort = backTestShort.map [
-				val profitForTrade = (entry.price.toDouble - exit.price.toDouble)
-				val fees = (entry.price.toDouble * 0.002 + exit.price.toDouble * 0.002)
-				println("sell at " + entry.price.toDouble + " exit at " + exit.price.toDouble + " Profit: " + (profitForTrade - fees))
-				profitForTrade - fees
-			].reduce[a, b|a + b]
-			println("Profit Long : " + profitLong)
-			println("Profit Short: " + profitShort)
-			ChartUtil.plotDataset(ChartUtil.createOHLCSeries(series, "Bitstamp"), ChartUtil.createSeries(indicator, "rnn"), "rnn", "rnn")
 		]
 	}
 

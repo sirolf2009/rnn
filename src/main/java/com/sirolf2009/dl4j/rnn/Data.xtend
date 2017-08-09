@@ -19,6 +19,7 @@ import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator.A
 import org.influxdb.dto.QueryResult.Series
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator
+import org.nd4j.linalg.dataset.api.preprocessor.DataNormalization
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerMinMaxScaler
 import org.nd4j.linalg.factory.Nd4j
 
@@ -104,12 +105,13 @@ class Data {
 		testLabels.initialize(new NumberedFileInputSplit('''«labelsDirTest.absolutePath»/test_%d.csv''', trainSize, trainSize + testSize))
 		val testData = new SequenceRecordReaderDataSetIterator(testFeatures, testLabels, miniBatchSize, -1, true, AlignmentMode.ALIGN_END)
 
-		return new TrainAndTestData(trainData, testData)
+		return new TrainAndTestData(trainData, testData, normalize(#[trainData, testData]))
 	}
 
 	@org.eclipse.xtend.lib.annotations.Data static class TrainAndTestData {
 		DataSetIterator trainData
 		DataSetIterator testData
+		DataNormalization normalizer
 	}
 
 	@org.eclipse.xtend.lib.annotations.Data public static class PrepareData extends Action<DataFormat> {
@@ -127,7 +129,6 @@ class Data {
 			numOfVariables = rawStrings.numOfVariables
 			val trainingLines = rawStrings.size() - numberOfTimesteps - numberOfTimesteps - numberOfTimesteps
 			trainSize = trainingLines - (trainingLines % miniBatchSize)
-			progressBatch = 10
 		}
 
 		override getWorkloadSize() {
@@ -135,10 +136,10 @@ class Data {
 		}
 
 		override call() throws Exception {
-			featuresDirTrain.mkdirs()
-			labelsDirTrain.mkdirs()
-			featuresDirTest.mkdirs()
-			labelsDirTest.mkdirs()
+			featuresDirTrain.clean()
+			labelsDirTrain.clean()
+			featuresDirTest.clean()
+			labelsDirTest.clean()
 			message = "Creating training data"
 			(0 .. trainSize).toList.parallelStream.forEach [
 				val featuresPath = Paths.get('''«featuresDirTrain.absolutePath»/train_«it».csv''')

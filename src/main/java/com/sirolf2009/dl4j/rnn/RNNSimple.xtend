@@ -20,7 +20,6 @@ import org.deeplearning4j.nn.conf.layers.GravesLSTM
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
 import org.deeplearning4j.nn.weights.WeightInit
-import org.deeplearning4j.optimize.listeners.ScoreIterationListener
 import org.jfree.chart.ChartFactory
 import org.jfree.chart.ChartPanel
 import org.jfree.chart.axis.NumberAxis
@@ -93,10 +92,6 @@ class RNNSimple {
 		val net = new MultiLayerNetwork(config.build())
 		net.init()
 
-		net.listeners += #[
-			new ScoreIterationListener(20)
-		]
-
 		val collection = new XYSeriesCollection()
 		val trainArray = createIndArrayFromStringList(rawStrings, numOfVariables, 0, trainSize)
 		val testArray = createIndArrayFromStringList(rawStrings, numOfVariables, trainSize, testSize)
@@ -130,7 +125,7 @@ class RNNSimple {
 	}
 
 	def predict(MultiLayerNetwork net) {
-		val db = new Database("http://198.211.120.29:8086")
+		val db = new Database("http://database:8086")
 		val dataset = Data.asDataset(db.getOHLC(trainSize, 1))
 		val file = new File("src/main/resources/temp_0.csv")
 		Files.write(file.toPath, Data.asCSV(dataset).split("\n"))
