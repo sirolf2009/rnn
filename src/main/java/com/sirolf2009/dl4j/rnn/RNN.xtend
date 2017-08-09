@@ -1,18 +1,11 @@
 package com.sirolf2009.dl4j.rnn
 
-import com.sirolf2009.dl4j.rnn.Data.DataFormat
 import com.sirolf2009.dl4j.rnn.Data.PrepareData
-import com.sirolf2009.dl4j.rnn.indicator.RnnCloseIndicator
 import com.sirolf2009.progressbar.ProgressBar
 import com.sirolf2009.progressbar.Styles
 import java.io.File
 import java.text.SimpleDateFormat
-import java.time.Duration
 import java.util.Date
-import org.deeplearning4j.earlystopping.EarlyStoppingConfiguration
-import org.deeplearning4j.earlystopping.termination.MaxEpochsTerminationCondition
-import org.deeplearning4j.earlystopping.trainer.EarlyStoppingTrainer
-import org.deeplearning4j.eval.RegressionEvaluation
 import org.deeplearning4j.nn.api.OptimizationAlgorithm
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration
 import org.deeplearning4j.nn.conf.Updater
@@ -24,8 +17,6 @@ import org.deeplearning4j.util.ModelSerializer
 import org.jfree.data.xy.XYSeriesCollection
 import org.nd4j.linalg.activations.Activation
 import org.nd4j.linalg.dataset.DataSet
-import org.nd4j.linalg.dataset.api.iterator.DataSetIterator
-import org.nd4j.linalg.dataset.api.preprocessor.DataNormalization
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerMinMaxScaler
 import org.nd4j.linalg.lossfunctions.LossFunctions
 
@@ -66,8 +57,8 @@ class RNN {
 		net.init()
 
 		println("Training")
-//		return new ProgressBar.Builder().name("Training").action(new Training.VisualTraining(net, rawDataFile, datasets, normalizer, dataformat, epochs)).style(Styles.ASCII).terminalWidth(250).build().get()
-		return new ProgressBar.Builder().name("Training").action(new Training.EarlyStoppingTraining(net, datasets, epochs, numberOfTimesteps)).style(Styles.ASCII).terminalWidth(250).build().get()
+//		return new ProgressBar.Builder().name("Training on "+rawDataFile).action(new Training.VisualTraining(net, rawDataFile, datasets, normalizer, dataformat, epochs)).style(Styles.ASCII).terminalWidth(250).build().get()
+		return new ProgressBar.Builder().name("Training on "+rawDataFile).action(new Training.EarlyStoppingTraining(net, datasets, epochs, numberOfTimesteps)).style(Styles.ASCII).terminalWidth(250).build().get()
 	}
 
 	def predict(MultiLayerNetwork net, int trainSize) {

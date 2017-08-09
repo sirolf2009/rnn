@@ -31,7 +31,6 @@ public class CsvTradesLoader extends Action<TimeSeries> {
 
 	public CsvTradesLoader(Duration interval) {
 		this.interval = interval;
-		setProgressBatch(1000);
 	}
 
 	@Override
