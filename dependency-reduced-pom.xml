@@ -39,7 +39,6 @@
         <version>3.0.0</version>
         <executions>
           <execution>
-            <phase>package</phase>
             <goals>
               <goal>shade</goal>
             </goals>
@@ -63,6 +62,21 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>1.6.0</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>java</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <mainClass>com.sirolf2009.dl4j.rnn.RNN</mainClass>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
   <dependencies>
@@ -80,6 +94,7 @@
     </dependency>
   </dependencies>
   <properties>
+    <nd4j.backend>nd4j-native-platform</nd4j.backend>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <xtend.version>2.11.0</xtend.version>
   </properties>

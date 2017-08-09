@@ -11,6 +11,8 @@ import java.time.ZonedDateTime
 import java.util.List
 
 import static extension java.lang.Double.parseDouble
+import com.sirolf2009.progressbar.ProgressBar
+import com.sirolf2009.progressbar.Styles
 
 class DataLoader {
 	
@@ -40,7 +42,7 @@ class DataLoader {
 	}
 	
 	def static TimeSeries loadBitstampSeries(Duration interval) {
-		return CsvTradesLoader.loadBitstampSeries(interval)
+		return new ProgressBar.Builder().name("Loading Bitstamp Data").action(new CsvTradesLoader(interval)).terminalWidth(250).style(Styles.ASCII).build().get()
 	}
 	
 }
