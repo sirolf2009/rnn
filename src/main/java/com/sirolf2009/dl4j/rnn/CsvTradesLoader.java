@@ -18,12 +18,12 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.opencsv.CSVReader;
-import com.sirolf2009.progressbar.Action;
+import com.sirolf2009.progressbar.ActionTimed;
 
 import eu.verdelhan.ta4j.Tick;
 import eu.verdelhan.ta4j.TimeSeries;
 
-public class CsvTradesLoader extends Action<TimeSeries> {
+public class CsvTradesLoader extends ActionTimed<TimeSeries> {
 
 	private static final String FILE = "data/bitstamp_trades_from_20131125_usd.csv";
 

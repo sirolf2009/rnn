@@ -3,7 +3,7 @@ package com.sirolf2009.dl4j.rnn
 import com.sirolf2009.dl4j.rnn.model.Dataset
 import com.sirolf2009.dl4j.rnn.model.Point
 import com.sirolf2009.dl4j.rnn.model.TimeSeries
-import com.sirolf2009.progressbar.Action
+import com.sirolf2009.progressbar.ActionTimed
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -114,7 +114,7 @@ class Data {
 		DataNormalization normalizer
 	}
 
-	@org.eclipse.xtend.lib.annotations.Data public static class PrepareData extends Action<DataFormat> {
+	@org.eclipse.xtend.lib.annotations.Data public static class PrepareData extends ActionTimed<DataFormat> {
 
 		val int numberOfTimesteps
 		val int miniBatchSize
